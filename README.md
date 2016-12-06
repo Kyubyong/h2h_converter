@@ -1,5 +1,5 @@
 # h2h Converter
-Convert Sino-Korean words written in <u>H</u>angul to Chinese characters, which is called <u>H</u>anja in Korean using neural networks
+Convert Sino-Korean words written in <b>H</b>angul to Chinese characters, which is called <b>H</b>anja in Korean using neural networks
 
 ## Requirements
   * numpy >= 1.11.1
@@ -13,7 +13,7 @@ Can we convert Sino-Korean words written in Hangul, the Korean alphabet, to Chin
   * Around 2/3 of Korean words are Sino-Korean.
   * The official script of Korean is Hangul, but Chinese characters, Hanja in Korean, are still used.
   * Transcripting Hanja to Hangul is trivial because most of Hanja have a single equivalent of Hangul. However, the reverse is not.
-  * A Hangul-to-Hanja conveter demo, Utagger, is avaiable here. http://203.250.77.242:5900/utagger/
+  * A Hangul-to-Hanja conveter demo, Utagger, is avaiable [here](http://203.250.77.242:5900/utagger/).
   * Neural networks, concretely CNNs, can be applied to this task.
 
 ## Main Idea
@@ -22,19 +22,19 @@ We use dilated convolutional neural networks instead of biRNN. It turns out that
 ## Data
 We built a hangul-hanja parallel corpus for the research, which is neither big enough nor excellent in quality. It looks like the following.
 
-나는 오늘 학교에 간다[Tab]나는 오늘 學校에 간다
+나는 오늘 학교에 간다 <b>[Tab]<b/> 나는 오늘 學校에 간다
 
 ## Model Architecture
 
-Two blocks of convolutional neural networks of exponentially increased holes. (Check [Kalchbrenner et. al.](https://arxiv.org/pdf/1610.10099v1.pdf)
+Two blocks of convolutional neural networks of exponentially increased holes. (Check [Kalchbrenner et. al.](https://arxiv.org/pdf/1610.10099v1.pdf) )
 
-And its implementation code is borrowed from Namju's github repository. (Check Namju's [ByteNet](https://github.com/buriburisuri/ByteNet)
+And its implementation code is borrowed from Namju's github repository. (Check Namju's [ByteNet](https://github.com/buriburisuri/ByteNet) )
 
 ## Folder and file instructions
   * prepro.py: Preprocessing. Make your own corpus at `corpus/corpus.tsv`. Returns `data/X.npy`, `data/Y.npy`, and `data/charmaps.pkl`. You can adjust hyperparameter in this file if you want.
   * train.py: Training. By default, it creates log files and model files at `asset/train/log` and `asset/train/ckpt` respectively.
   * run.py: Running/Testing. Read `data/input.txt` and write the results to `data/output.txt`. You can see our sample input file and its results.
-  * model-019-1239684: Pretrained model parameters. Can be download [here](https://drive.google.com/open?id=0B5M-ed49qMsDQ1dEYXF3cTVNM1E)
+  * model-019-1239684: Pretrained model parameters. Can be download [here](https://drive.google.com/open?id=0B5M-ed49qMsDQ1dEYXF3cTVNM1E).
 
 ## Results
 After having seen 19 epochs, we test some sample sentences. Here are some snippets of the test results.
