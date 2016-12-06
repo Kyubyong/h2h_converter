@@ -13,7 +13,7 @@ Can we convert Sino-Korean words written in Hangul, the Korean alphabet, to Chin
   * Around 2/3 of Korean words are Sino-Korean.
   * The official script of Korean is Hangul, but Chinese characters, Hanja in Korean, are still used.
   * Transcripting Hanja to Hangul is trivial because most of Hanja have a single equivalent of Hangul. However, the reverse is not.
-  * A Hangul-to-Hanja conveter demo, Utagger, is avaiable [here](http://203.250.77.242:5900/utagger/).
+  * A Hangul-to-Hanja converter demo, Utagger, is avaiable [here](http://203.250.77.242:5900/utagger/).
   * Neural networks, concretely CNNs, can be applied to this task.
 
 ## Main Idea
@@ -22,7 +22,7 @@ We use dilated convolutional neural networks instead of biRNN. It turns out that
 ## Data
 We built a hangul-hanja parallel corpus for the research, which is neither big enough nor excellent in quality. It looks like the following.
 
-나는 오늘 학교에 간다 <b>[Tab]<b/> 나는 오늘 學校에 간다
+나는 오늘 학교에 간다  [Tab]  나는 오늘 學校에 간다
 
 ## Model Architecture
 
