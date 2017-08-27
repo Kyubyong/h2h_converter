@@ -1,78 +1,156 @@
-# h2h Converter
-Convert Sino-Korean words written in <b>H</b>angul to Chinese characters, which is called <b>H</b>anja in Korean using neural networks
+# Hangul to Chinse Character Conversion
+
+Around 2/3 of Korean words are Sino-Korean. For that reason, although the official script of the Korean language is Hangul, Chinese characters are still widely used. Converting Chinese characters (_Hanja_ in Korean) to Hangul is trivial because most _Hanjas_ have a single equivalent of Hangul. However, the reverse is not. There has been a project, [_UTagger_](http://203.250.77.242:5900/utagger/), for Hangul-to-Hanja conversion. I use neural networks to tackle the task.
 
 ## Requirements
   * numpy >= 1.11.1
-  * sugartensor == 0.0.1.8 (Check [this repository](https://github.com/buriburisuri/sugartensor) for installing sugartensor)
-  * + Your Own Corpus
-	
-## Research Question
-Can we convert Sino-Korean words written in Hangul, the Korean alphabet, to Chinese character correctly using neural networks?
-
-## Background
-  * Around 2/3 of Korean words are Sino-Korean.
-  * The official script of Korean is Hangul, but Chinese characters, Hanja in Korean, are still used.
-  * Transcripting Hanja to Hangul is trivial because most of Hanja have a single equivalent of Hangul. However, the reverse is not.
-  * A Hangul-to-Hanja converter demo, Utagger, is avaiable [here](http://203.250.77.242:5900/utagger/).
-  * Neural networks, concretely CNNs, can be applied to this task.
-
-## Main Idea
-We use dilated convolutional neural networks instead of biRNN. It turns out that the former is more powerful and much faster than the latter.
+  * TensorFlow == 1.3
+  * tqdm
 
 ## Data
-We built a hangul-hanja parallel corpus for the research, which is neither big enough nor excellent in quality. It looks like the following.
+
+The KRV Bible is in the public domain. I have refined it to our purpose. Each line is separated by a tab. Sino Korean words in the first sentence is written in _Hanja_ in the second sentence (See below). Check `data/bible_ko.tsv`.
 
 나는 오늘 학교에 간다  [Tab]  나는 오늘 學校에 간다
 
 ## Model Architecture
 
-Two blocks of convolutional neural networks of exponentially increased holes. (Check [Kalchbrenner et. al.](https://arxiv.org/pdf/1610.10099v1.pdf) )
+Bidirectional GRUs.
 
-And its implementation code is borrowed from Namju's github repository. (Check Namju's [ByteNet](https://github.com/buriburisuri/ByteNet) )
-
-## Folder and file instructions
-  * prepro.py: Preprocessing. Make your own corpus at `corpus/corpus.tsv`. Returns `data/X.npy`, `data/Y.npy`, and `data/charmaps.pkl`. You can adjust hyperparameter in this file if you want.
-  * train.py: Training. By default, it creates log files and model files at `asset/train/log` and `asset/train/ckpt` respectively.
-  * run.py: Running/Testing. Read `data/input.txt` and write the results to `data/output.txt`. You can see our sample input file and its results.
-  * model-019-1239684: Pretrained model parameters. Can be download [here](https://drive.google.com/open?id=0B5M-ed49qMsDQ1dEYXF3cTVNM1E).
+## Training
+  * Adjust hyperparameters in the `hyperparams.py` if necessary.
+  * Run `python train.py`.
 
 ## Results
-After having seen 19 epochs, we test some sample sentences. Here are some snippets of the test results.
+After 10 epochs, I got the accuracy of 0.99 for validation data. Details are available in the `eval.txt`.
 
-▌Input: 하루 새 공기의 느낌이 확 달라졌습니다.<br/> 
-▌Output: 하루 새 空氣의 느낌이 확 달라졌습니다.
+▌Input   : 그 성곽을 척량하매 일백 사십 사 규빗이니 사람의 척량 곧 천사의 척량이라<br>
+▌Expected: 그 城廓을 尺量하매 一百 四十 四 규빗이니 사람의 尺量 곧 天使의 尺量이라<br>
+▌Got     : 그 城廓을 尺量하매 一百 사십 四 규빗이니 사람의 尺量 곧 天使의 尺量이라<br>
 
-▌Input: 밤새 찬바람이 불면서 미세먼지는 물러갔지만, 겨울 추위가 찾아왔는데요, <br/> 
-▌Output: 밤새 찬바람이 불면서 微細먼지는 물러갔지만, 겨울 추위가 찾아왔는데요,
+▌Input   : 그 성곽은 벽옥으로 쌓였고 그 성은 정금인데 맑은 유리 같더라<br>
+▌Expected: 그 城廓은 碧玉으로 쌓였고 그 城은 精金인데 맑은 琉璃 같더라<br>
+▌Got     : 그 城廓은 碧玉으로 쌓였고 그 城은 精金인데 맑은 유離 같더라<br>
 
-▌Input: 현재 서울 등 수도권 쪽으로는 한파주의보도 내려진 상태입니다.<br/> 
-▌Output: 현재 서울 等 首都권 쪽으로는 韓波主義보도 내려진 狀態입니다.
+▌Input   : 그 성의 성곽의 기초석은 각색 보석으로 꾸몄는데 첫째 기초석은 벽옥이요 둘째는 남보석이요 세째는 옥수요 네째는 녹보석이요<br>
+▌Expected: 그 城의 城廓의 基礎石은 各色 寶石으로 꾸몄는데 첫째 基礎石은 碧玉이요 둘째는 藍寶石이요 세째는 玉髓요 네째는 綠寶石이요<br>
+▌Got     : 그 城의 城廓의 基礎石은 各色 寶石으로 꾸몄는데 첫째 基礎石은 壁玉이요 둘째는 藍寶石이요 세째는 玉數요 네째는 綠寶石이요<br>
 
-▌Input: 현재 서울의 기온 영하 3.9 도, 철원 영하 5.1 도, 남부 내륙도 영하로 뚝 떨어져 있고요, <br/> 
-▌Output: 현재 서울의 氣溫 영하 3.9 도, 鐵圓 영하 5.1 도, 南部 內陸도 영하로 뚝 떨어져 있고요,
+▌Input   : 다섯째는 홍마노요 여섯째는 홍보석이요 일곱째는 황옥이요 여덟째는 녹옥이요 아홉째는 담황옥이요 열째는 비취옥이요 열 한째는 청옥이요 열 두째는 자정이라<br>
+▌Expected: 다섯째는 紅瑪瑙요 여섯째는 紅寶石이요 일곱째는 黃玉이요 여덟째는 綠玉이요 아홉째는 淡黃玉이요 열째는 翡翠玉이요 열 한째는 靑玉이요 열 두째는 紫晶이라<br>
+▌Got     : 다섯째는 紅瑪瑙요 여섯째는 紅寶石이요 일곱째는 黃玉이요 여덟째는 綠玉이요 아홉째는 담黃玉이요 열째는 비醉옥이요 열 한째는 靑玉이요 열 두째는 自情이라<br>
 
-▌Input: 초속 4m 안팎의 찬바람이 불면서 현재 서울의 체감온도는 영하 10도 가까이 내려가 있는 상태입니다.<br/> 
-▌Output: 初速 4m 안팎의 찬바람이 불면서 현재 서울의 體感온도는 영하 10도 가까이 내려가 있는 狀態입니다.
+▌Input   : 그 열 두 문은 열 두 진주니 문마다 한 진주요 성의 길은 맑은 유리 같은 정금이더라<br>
+▌Expected: 그 열 두 門은 열 두 眞珠니 門마다 한 眞珠요 城의 길은 맑은 琉璃 같은 精金이더라<br>
+▌Got     : 그 열 두 門은 열 두 眞珠니 門마다 한 眞珠요 城의 길은 맑은 유리 같은 精金이더라<br>
 
-▌Input: 동해안 쪽으로는 건조특보가 계속되고 있어서 화재 예방에 유의를 하셔야겠고요, <br/> 
-▌Output: 東海岸 쪽으로는 乾組특보가 繼續되고 있어서 火災 豫防에 유의를 하셔야겠고요, 
+▌Input   : 성안에 성전을 내가 보지 못하였으니 이는 주 하나님 곧 전능하신 이와 및 어린 양이 그 성전이심이라<br>
+▌Expected: 城안에 聖殿을 내가 보지 못하였으니 이는 主 하나님 곧 全能하신 이와 및 어린 羊이 그 聖殿이심이라<br>
+▌Got     : 성안에 聖殿을 내가 보지 못하였으니 이는 主 하나님 곧 全能하신 이와 및 어린 羊이 그 聖殿이심이라<br>
 
-▌Input: 내일은 중부 지방을 중심으로 1cm 안팎의 눈이 조금 내리겠습니다.<br/> 
-▌Output: 내일은 中部 地方을 中心으로 1cm 안팎의 눈이 조금 내리겠습니다.
+▌Input   : 그 성은 해나 달의 비췸이 쓸데 없으니 이는 하나님의 영광이 비취고 어린 양이 그 등이 되심이라<br>
+▌Expected: 그 城은 해나 달의 비췸이 쓸데 없으니 이는 하나님의 榮光이 비취고 어린 羊이 그 燈이 되심이라<br>
+▌Got     : 그 城은 해나 달의 비췸이 쓸데 없으니 이는 하나님의 榮光이 비취고 어린 羊이 그 등이 되심이라<br>
 
-▌Input: 오늘 하늘은 종일 맑겠지만, 찬바람이 불면서 춥겠습니다.<br/> 
-▌Output: 오늘 하늘은 終日 맑겠지만, 찬바람이 불면서 춥겠습니다.
+▌Input   : 만국이 그 빛 가운데로 다니고 땅의 왕들이 자기 영광을 가지고 그리로 들어오리라<br>
+▌Expected: 萬國이 그 빛 가운데로 다니고 땅의 王들이 自己 榮光을 가지고 그리로 들어오리라<br>
+▌Got     : 萬國이 그 빛 가운데로 다니고 땅의 王들이 自己 榮光을 가지고 그리로 들어오리라<br>
 
-▌Input: 낮 기온은 서울 3도, 청주 5도에 머무는 데다가, 체감온도는 더 낮겠습니다.<br/> 
-▌Output: 낮 氣溫은 서울 3도, 靑紬 5도에 머무는 데다가, 體感온도는 더 낮겠습니다.
+▌Input   : 성문들을 낮에 도무지 닫지 아니하리니 거기는 밤이 없음이라<br>
+▌Expected: 城門들을 낮에 도무지 닫지 아니하리니 거기는 밤이 없음이라<br>
+▌Got     : 城門들을 낮에 도무지 닫지 아니하리니 거기는 밤이 없음이라<br>
 
-▌Input: 내일은 새벽부터 낮 사이 중부 지방을 중심으로 비나 눈이 조금 예상됩니다. <br/> 
-▌Output: 내일은 새벽부터 낮 사이 中部 地方을 中心으로 비나 눈이 조금 豫想됩니다. 
+▌Input   : 사람들이 만국의 영광과 존귀를 가지고 그리로 들어오겠고<br>
+▌Expected: 사람들이 萬國의 榮光과 尊貴를 가지고 그리로 들어오겠고<br>
+▌Got     : 사람들이 萬國의 榮光과 尊貴를 가지고 그리로 들어오겠고<br>
 
-## Conclusion
-Convolutional neural networks are effective in hangul-to-hanja conversion. However, we need more data, and a bigger model!
+▌Input   : 무엇이든지 속된 것이나 가증한 일 또는 거짓말하는 자는 결코 그리로 들어오지 못하되 오직 어린 양의 생명책에 기록된 자들뿐이라<br>
+▌Expected: 무엇이든지 俗된 것이나 可憎한 일 또는 거짓말하는 자는 決코 그리로 들어오지 못하되 오직 어린 羊의 生命冊에 記錄된 자들뿐이라<br>
+▌Got     : 무엇이든지 속된 것이나 可憎한 일 또는 거짓말하는 자는 決코 그리로 들어오지 못하되 오직 어린 羊의 生命冊에 記錄된 자들뿐이라<br>
+
+▌Input   : 또 저가 수정같이 맑은 생명수의 강을 내게 보이니 하나님과 및 어린 양의 보좌로부터 나서<br>
+▌Expected: 또 저가 水晶같이 맑은 生命水의 江을 내게 보이니 하나님과 및 어린 羊의 寶座로부터 나서<br>
+▌Got     : 또 저가 水晶같이 맑은 生命水의 江을 내게 보이니 하나님과 및 어린 羊의 寶座로부터 나서<br>
+
+▌Input   : 길 가운데로 흐르더라 강 좌우에 생명 나무가 있어 열 두가지 실과를 맺히되 달마다 그 실과를 맺히고 그 나무 잎사귀들은 만국을 소성하기 위하여 있더라<br>
+▌Expected: 길 가운데로 흐르더라 江 左右에 生命 나무가 있어 열 두가지 實果를 맺히되 달마다 그 實果를 맺히고 그 나무 잎사귀들은 萬國을 蘇醒하기 爲하여 있더라<br>
+▌Got     : 길 가운데로 흐르더라 江 左右에 生命 나무가 있어 열 두가지 實果를 맺히되 달마다 그 實果를 맺히고 그 나무 잎사귀들은 萬國을 蘇醒하기 爲하여 있더라<br>
+
+▌Input   : 다시 저주가 없으며 하나님과 그 어린 양의 보좌가 그 가운데 있으리니 그의 종들이 그를 섬기며<br>
+▌Expected: 다시 詛呪가 없으며 하나님과 그 어린 羊의 寶座가 그 가운데 있으리니 그의 종들이 그를 섬기며<br>
+▌Got     : 다시 詛呪가 없으며 하나님과 그 어린 羊의 寶座가 그 가운데 있으리니 그의 종들이 그를 섬기며<br>
+
+▌Input   : 그의 얼굴을 볼터이요 그의 이름도 저희 이마에 있으리라<br>
+▌Expected: 그의 얼굴을 볼터이요 그의 이름도 저희 이마에 있으리라<br>
+▌Got     : 그의 얼굴을 볼터이요 그의 이름도 저희 이마에 있으리라<br>
+
+▌Input   : 다시 밤이 없겠고 등불과 햇빛이 쓸데 없으니 이는 주 하나님이 저희에게 비취심이라 저희가 세세토록 왕노릇하리로다<br>
+▌Expected: 다시 밤이 없겠고 燈불과 햇빛이 쓸데 없으니 이는 主 하나님이 저희에게 비취심이라 저희가 世世토록 王노릇하리로다<br>
+▌Got     : 다시 밤이 없겠고 燈불과 햇빛이 쓸데 없으니 이는 主 하나님이 저희에게 비취심이라 저희가 世世토록 王노릇하리로다<br>
+
+▌Input   : 또 그가 내게 말하기를 이 말은 신실하고 참된 자라 주 곧 선지자들의 영의 하나님이 그의 종들에게 결코 속히 될 일을 보이시려고 그의 천사를 보내셨도다<br>
+▌Expected: 또 그가 내게 말하기를 이 말은 信實하고 참된 자라 主 곧 先知자들의 靈의 하나님이 그의 종들에게 決코 速히 될 일을 보이시려고 그의 天使를 보내셨도다<br>
+▌Got     : 또 그가 내게 말하기를 이 말은 信實하고 참된 자라 主 곧 先知자들의 靈의 하나님이 그의 종들에게 決코 速히 될 일을 보이시려고 그의 天使를 보내셨도다<br>
+
+▌Input   : 보라 내가 속히 오리니 이 책의 예언의 말씀을 지키는 자가 복이 있으리라 하더라<br>
+▌Expected: 보라 내가 速히 오리니 이 冊의 豫言의 말씀을 지키는 자가 福이 있으리라 하더라<br>
+▌Got     : 보라 내가 速히 오리니 이 冊의 豫言의 말씀을 지키는 자가 福이 있으리라 하더라<br>
+
+▌Input   : 이것들을 보고 들은 자는 나 요한이니 내가 듣고 볼때에 이 일을 내게 보이던 천사의 발앞에 경배하려고 엎드렸더니<br>
+▌Expected: 이것들을 보고 들은 자는 나 요한이니 내가 듣고 볼때에 이 일을 내게 보이던 天使의 발앞에 敬拜하려고 엎드렸더니<br>
+▌Got     : 이것들을 보고 들은 자는 나 요한이니 내가 듣고 볼때에 이 일을 내게 보이던 天使의 발앞에 敬拜하려고 엎드렸더니<br>
+
+▌Input   : 저가 내게 말하기를 나는 너와 네 형제 선지자들과 또 이 책의 말을 지키는 자들과 함께된 종이니 그리하지 말고 오직 하나님께 경배하라 하더라<br>
+▌Expected: 저가 내게 말하기를 나는 너와 네 兄弟 先知자들과 또 이 冊의 말을 지키는 자들과 함께된 종이니 그리하지 말고 오직 하나님께 敬拜하라 하더라<br>
+▌Got     : 저가 내게 말하기를 나는 너와 네 兄弟 先知자들과 또 이 冊의 말을 지키는 자들과 함께된 종이니 그리하지 말고 오직 하나님께 敬拜하라 하더라<br>
+
+▌Input   : 또 내게 말하되 이 책의 예언의 말씀을 인봉하지 말라 때가 가까우니라<br>
+▌Expected: 또 내게 말하되 이 冊의 豫言의 말씀을 印封하지 말라 때가 가까우니라<br>
+▌Got     : 또 내게 말하되 이 冊의 豫言의 말씀을 印封하지 말라 때가 가까우니라<br>
+
+▌Input   : 불의를 하는 자는 그대로 불의를 하고 더러운 자는 그대로 더럽고 의로운 자는 그대로 의를 행하고 거룩한 자는 그대로 거룩되게 하라<br>
+▌Expected: 不義를 하는 자는 그대로 不義를 하고 더러운 자는 그대로 더럽고 義로운 자는 그대로 義를 行하고 거룩한 자는 그대로 거룩되게 하라<br>
+▌Got     : 不義를 하는 자는 그대로 不義를 하고 더러운 자는 그대로 더럽고 義로운 자는 그대로 義를 行하고 거룩한 자는 그대로 거룩되게 하라<br>
+
+▌Input   : 보라 내가 속히 오리니 내가 줄 상이 내게 있어 각 사람에게 그의 일한대로 갚아 주리라<br>
+▌Expected: 보라 내가 速히 오리니 내가 줄 賞이 내게 있어 各 사람에게 그의 일한대로 갚아 주리라<br>
+▌Got     : 보라 내가 速히 오리니 내가 줄 賞이 내게 있어 各 사람에게 그의 일한대로 갚아 주리라<br>
+
+▌Input   : 나는 알파와 오메가요 처음과 나중이요 시작과 끝이라<br>
+▌Expected: 나는 알파와 오메가요 처음과 나중이요 始作과 끝이라<br>
+▌Got     : 나는 알파와 오메가요 처음과 나중이요 始作과 끝이라<br>
+
+▌Input   : 그 두루마기를 빠는 자들은 복이 있으니 이는 저희가 생명 나무에 나아가며 문들을 통하여 성에 들어갈 권세를 얻으려 함이로다<br>
+▌Expected: 그 두루마기를 빠는 자들은 福이 있으니 이는 저희가 生命 나무에 나아가며 門들을 通하여 城에 들어갈 權勢를 얻으려 함이로다<br>
+▌Got     : 그 두루마기를 빠는 자들은 福이 있으니 이는 저희가 生命 나무에 나아가며 門들을 通하여 城에 들어갈 權勢를 얻으려 함이로다<br>
+
+▌Input   : 개들과 술객들과 행음자들과 살인자들과 우상 숭배자들과 및 거짓말을 좋아하며 지어내는 자마다 성밖에 있으리라<br>
+▌Expected: 개들과 術客들과 行淫자들과 殺人자들과 偶像 崇拜자들과 및 거짓말을 좋아하며 지어내는 자마다 城밖에 있으리라<br>
+▌Got     : 개들과 術客들과 行淫자들과 殺人자들과 偶像 崇拜자들과 및 거짓말을 좋아하며 지어내는 자마다 城밖에 있으리라<br>
+
+▌Input   : 나 예수는 교회들을 위하여 내 사자를 보내어 이것들을 너희에게 증거하게 하였노라 나는 다윗의 뿌리요 자손이니 곧 광명한 새벽별이라 하시더라<br>
+▌Expected: 나 예수는 敎會들을 爲하여 내 使자를 보내어 이것들을 너희에게 證據하게 하였노라 나는 다윗의 뿌리요 子孫이니 곧 光明한 새벽별이라 하시더라<br>
+▌Got     : 나 예수는 敎會들을 爲하여 내 使자를 보내어 이것들을 너희에게 證據하게 하였노라 나는 다윗의 뿌리요 子孫이니 곧 光明한 새벽별이라 하시더라<br>
+
+▌Input   : 성령과 신부가 말씀하시기를 오라 하시는도다 듣는 자도 오라 할 것이요 목마른 자도 올 것이요 또 원하는 자는 값없이 생명수를 받으라 하시더라<br>
+▌Expected: 聖靈과 新婦가 말씀하시기를 오라 하시는도다 듣는 자도 오라 할 것이요 목마른 자도 올 것이요 또 願하는 자는 값없이 生命水를 받으라 하시더라<br>
+▌Got     : 聖靈과 新婦가 말씀하시기를 오라 하시는도다 듣는 자도 오라 할 것이요 목마른 자도 올 것이요 또 願하는 자는 값없이 生命水를 받으라 하시더라<br>
+
+▌Input   : 내가 이 책의 예언의 말씀을 듣는 각인에게 증거하노니 만일 누구든지 이것들 외에 더하면 하나님이 이 책에 기록된 재앙들을 그에게 더하실 터이요<br>
+▌Expected: 내가 이 冊의 豫言의 말씀을 듣는 各人에게 證據하노니 萬一 누구든지 이것들 外에 더하면 하나님이 이 冊에 記錄된 災殃들을 그에게 더하실 터이요<br>
+▌Got     : 내가 이 冊의 豫言의 말씀을 듣는 各人에게 證據하노니 萬一 누구든지 이것들 外에 더하면 하나님이 이 冊에 記錄된 災殃들을 그에게 더하실 터이요<br>
+
+▌Input   : 만일 누구든지 이 책의 예언의 말씀에서 제하여 버리면 하나님이 이 책에 기록된 생명 나무와 및 거룩한 성에 참여함을 제하여 버리시리라<br>
+▌Expected: 萬一 누구든지 이 冊의 豫言의 말씀에서 除하여 버리면 하나님이 이 冊에 記錄된 生命 나무와 및 거룩한 城에 參與함을 除하여 버리시리라<br>
+▌Got     : 萬一 누구든지 이 冊의 豫言의 말씀에서 除하여 버리면 하나님이 이 冊에 記錄된 生命 나무와 및 거룩한 城에 參與함을 除하여 버리시리라<br>
+
+▌Input   : 이것들을 증거하신 이가 가라사대 내가 진실로 속히 오리라 하시거늘 아멘 주 예수여 오시옵소서<br>
+▌Expected: 이것들을 證據하신 이가 가라사대 내가 眞實로 速히 오리라 하시거늘 아멘 主 예수여 오시옵소서<br>
+▌Got     : 이것들을 證據하신 이가 가라사대 내가 眞實로 速히 오리라 하시거늘 아멘 主 예수여 오시옵소서<br>
+
+▌Input   : 주 예수의 은혜가 모든 자들에게 있을지어다 아멘<br>
+▌Expected: 主 예수의 恩惠가 모든 자들에게 있을지어다 아멘<br>
+▌Got     : 主 예수의 恩惠가 모든 자들에게 있을지어다 아멘<br>
 
 
-
-
-
+accuracy = 0.9905450500556173-----------------<br>

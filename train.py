@@ -4,102 +4,97 @@
 Training.
 '''
 
-from prepro import Hyperparams, load_data, load_charmaps
-import sugartensor as tf
+from data_load import load_vocab, load_data
+import tensorflow as tf
+import tqdm
+from hyperparams import Hyperparams as hp
+import codecs
 
-def get_batch_data():
-    '''Makes batch queues from the data.
+# Load vocab
+hangul2idx, idx2hangul, hanja2idx, idx2hanja = load_vocab()
 
-    Returns:
-      A Tuple of x (Tensor), y (Tensor).
-      x and y have the shape [batch_size, maxlen].
-    '''
-    # Load data
-    X, Y = load_data()
-    
-    # Create Queues
-    input_queues = tf.train.slice_input_producer([tf.convert_to_tensor(X, tf.int32), 
-                                                  tf.convert_to_tensor(Y, tf.int32)])
-
-    # create batch queues
-    x, y = tf.train.shuffle_batch(input_queues,
-                                  num_threads=8,
-                                  batch_size=Hyperparams.batch_size, 
-                                  capacity=Hyperparams.batch_size*64,
-                                  min_after_dequeue=Hyperparams.batch_size*32, 
-                                  allow_smaller_final_batch=False) 
-    
-    return x, y # (16, 100), (16, 100)
-
-# residual block
-@tf.sg_sugar_func
-def sg_res_block(tensor, opt):
-    # default rate
-    opt += tf.sg_opt(size=3, rate=1, causal=False)
-
-    # input dimension
-    in_dim = tensor.get_shape().as_list()[-1]
-
-    # reduce dimension
-    input_ = (tensor
-              .sg_bypass(act='relu', bn=(not opt.causal), ln=opt.causal)
-              .sg_conv1d(size=1, dim=in_dim/2, act='relu', bn=(not opt.causal), ln=opt.causal))
-
-    # 1xk conv dilated
-    out = input_.sg_aconv1d(size=opt.size, rate=opt.rate, causal=opt.causal, act='relu', bn=(not opt.causal), ln=opt.causal)
-
-    # dimension recover and residual connection
-    out = out.sg_conv1d(size=1, dim=in_dim) + tensor
-
-    return out
-
-# inject residual multiplicative block
-tf.sg_inject_func(sg_res_block)
-
-class ModelGraph():
+class Graph():
     '''Builds a model graph'''
     def __init__(self, is_train=True):
         '''
         Args:
           is_train: Boolean. If True, backprop is executed.
         '''
-        if is_train:
-            self.x, self.y = get_batch_data() # (16, 100), (16, 100)
-        else:
-#             self.x = tf.placeholder(tf.int32, [Hyperparams.batch_size, Hyperparams.maxlen])
-            self.x = tf.placeholder(tf.int32, [None, Hyperparams.maxlen])
-        
-        # make embedding matrix for input characters
-        hangul2idx, _, hanja2idx, _ = load_charmaps()
-        
-        self.emb_x = tf.sg_emb(name='emb_x', voca_size=len(hangul2idx), dim=Hyperparams.hidden_dim)
-        
-        # embed table lookup
-        self.enc = self.x.sg_lookup(emb=self.emb_x).sg_float() # (16, 100, 200)
-        
-        # loop dilated conv block
-        for i in range(2):
-            self.enc = (self.enc
-                   .sg_res_block(size=5, rate=1)
-                   .sg_res_block(size=5, rate=2)
-                   .sg_res_block(size=5, rate=4)
-                   .sg_res_block(size=5, rate=8)
-                   .sg_res_block(size=5, rate=16))
-        
-        # final fully convolutional layer for softmax
-        self.logits = self.enc.sg_conv1d(size=1, dim=len(hanja2idx)) # (16, 100, 4543)
-        
-        if is_train:
-            self.ce = self.logits.sg_ce(target=self.y, mask=True) # (16, 100)
-            self.nonzeros = tf.not_equal(self.y, tf.zeros_like(self.y)).sg_float() # (16, 100)
-            self.reduced_loss = self.ce.sg_sum() / self.nonzeros.sg_sum() # ()
-            tf.sg_summary_loss(self.reduced_loss, "reduced_loss")
+        self.graph = tf.Graph()
+        with self.graph.as_default():
+            self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen), name="hangul_sent")
+            self.y = tf.placeholder(tf.int32, shape=(None, hp.maxlen), name="hanja_sent")
 
-def train():
-    g = ModelGraph()
-    print "Graph loaded!"
-    tf.sg_train(lr=0.0001, lr_reset=True, log_interval=10, loss=g.reduced_loss, eval_metric=[], max_ep=20, 
-                save_dir='asset/train', early_stop=False, max_keep=5)
-     
+            # Sequence lengths
+            self.seqlens = tf.reduce_sum(tf.sign(self.x), -1)
+
+            # Embedding
+            self.inputs = tf.one_hot(self.x, len(hangul2idx))
+
+            # Network
+            cell_fw = tf.nn.rnn_cell.GRUCell(hp.hidden_units)
+            cell_bw = tf.nn.rnn_cell.GRUCell(hp.hidden_units)
+            outputs, _ = tf.nn.bidirectional_dynamic_rnn(cell_fw, cell_bw, self.inputs, self.seqlens, dtype=tf.float32)
+            logits = tf.layers.dense(tf.concat(outputs, -1), len(hanja2idx))
+            self.preds = tf.to_int32(tf.arg_max(logits, -1))
+
+            ## metric
+            hits = tf.to_int32(tf.equal(self.preds, self.y))
+            hits *= tf.sign(self.y)
+
+            self.acc = tf.reduce_sum(hits) / tf.reduce_sum(self.seqlens)
+
+            ## Loss and training
+            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=self.y)
+            self.mean_loss = tf.reduce_mean(loss)
+            self.global_step = tf.Variable(0, name='global_step', trainable=False)
+            optimizer = tf.train.AdamOptimizer(hp.learning_rate)
+            self.train_op = optimizer.minimize(self.mean_loss, global_step=self.global_step)
+
+            # Summary
+            tf.summary.scalar("mean_loss", self.mean_loss)
+            tf.summary.scalar("acc", self.acc)
+
+            self.merged = tf.summary.merge_all()
+
+
 if __name__ == '__main__':
-    train(); print "Done"
+    # Data loading
+    X_train, Y_train = load_data(mode="train")
+    x_val, y_val = load_data(mode="val")
+
+    # Session
+    g = Graph()
+    with g.graph.as_default():
+        # Training
+        sv = tf.train.Supervisor(logdir=hp.logdir,
+                                 save_model_secs=0)
+        with sv.managed_session() as sess:
+            with codecs.open("eval.txt", 'w', 'utf-8') as fout:
+                for epoch in range(hp.num_epochs):
+                    for i in tqdm.tqdm(range(0, len(X_train), hp.batch_size), total=len(X_train)//hp.batch_size):
+                        x_train = X_train[i:i+hp.batch_size]
+                        y_train = Y_train[i:i+hp.batch_size]
+                        sess.run(g.train_op, {g.x: x_train, g.y: y_train})
+
+                    # Write checkpoint files at every epoch
+                    gs = sess.run(g.global_step)
+                    sv.saver.save(sess, hp.logdir + '/model_epoch_%02d_gs_%d' % (epoch, gs))
+
+                    # Evaluation
+                    preds, acc = sess.run([g.preds, g.acc], {g.x: x_val, g.y: y_val})
+                    fout.write(u"\nepoch = {}\n".format(epoch+1))
+                    for xx, yy, pred in zip(x_val, y_val, preds): # sentence-wise
+                        inputs, expected, got = [], [], []
+                        for xxx, yyy, ppp in zip(xx, yy, pred):  # character-wise
+                            if xxx==0: break
+                            inputs.append(idx2hangul[xxx])
+                            expected.append(idx2hanja[yyy] if yyy!=1 else idx2hangul[xxx])
+                            got.append(idx2hanja[ppp] if ppp != 1 else idx2hangul[xxx])
+
+                        fout.write(u"* Input   : {}\n".format("".join(inputs)))
+                        fout.write(u"* Expected: {}\n".format("".join(expected)))
+                        fout.write(u"* Got     : {}\n".format("".join(got)))
+                        fout.write("\n")
+                    fout.write(u"\naccuracy = {}".format(acc))
+                    fout.write("-----------------\n")
