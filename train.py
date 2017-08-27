@@ -15,11 +15,7 @@ hangul2idx, idx2hangul, hanja2idx, idx2hanja = load_vocab()
 
 class Graph():
     '''Builds a model graph'''
-    def __init__(self, is_train=True):
-        '''
-        Args:
-          is_train: Boolean. If True, backprop is executed.
-        '''
+    def __init__(self):
         self.graph = tf.Graph()
         with self.graph.as_default():
             self.x = tf.placeholder(tf.int32, shape=(None, hp.maxlen), name="hangul_sent")
